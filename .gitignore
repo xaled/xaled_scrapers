@@ -1,3 +1,11 @@
+.idea/
+*.data.json
+*.config.json
+*.log
+out/
+data/
+geckodriver
+chromedriver
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
