@@ -19,7 +19,7 @@ extra_files = package_files('xaled_scrapers/')
 
 setup(
       name='xaled_scrapers',
-      version='0.1.0rc1', # major.minor.fix: MAJOR incompatible API changes, MINOR add backwards-compatible functionality, FIX bug fixes
+      version='0.1.0a', # major.minor.fix: MAJOR incompatible API changes, MINOR add backwards-compatible functionality, FIX bug fixes
       description='A collection of helper functions for scraping web sites.',
       long_description='A collection of helper functions for scraping web sites.',
       long_description_content_type='text/x-rst',
