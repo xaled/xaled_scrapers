@@ -238,7 +238,7 @@ def parse_days_left(days_left):
         return days_left
 
 if __name__ == "__main__":
-    configure_logging(modules=['xaled_selenium'])
+    configure_logging(modules=['xaled_scrapers', 'xaled_utils'])
     additional_arguments = list()
     additional_arguments.append(get_additional_argument('-u', '--user', required=True))
     additional_arguments.append(get_additional_argument('-p', '--password', required=True))

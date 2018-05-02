@@ -105,7 +105,7 @@ def main(user, password):
 
 
 if __name__ == "__main__":
-    configure_logging(modules=["xaled_selenium","kutils"])
+    configure_logging(modules=["xaled_scrapers","xaled_utils"])
     additional_arguments = list()
     additional_arguments.append(get_additional_argument('-u', '--user', required=True))
     additional_arguments.append(get_additional_argument('-p', '--password', required=True))
