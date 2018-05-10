@@ -9,6 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.common.exceptions import TimeoutException
 from xaled_utils.json_min_db import JsonMinConnexion
 from xaled_utils.logs import configure_logging
 from xaled_scrapers.selenium import get_display
@@ -155,8 +156,12 @@ def parse_orders():
 
 
 def login(email, passwd):
-    driver.get(
-        "https://login.aliexpress.com/express/mulSiteLogin.htm?spm=2114.11010108.1000002.7.9c5Rcg&return=http%3A%2F%2Fwww.aliexpress.com%2F")
+    # driver.get(
+    #     "https://login.aliexpress.com/express/mulSiteLogin.htm?spm=2114.11010108.1000002.7.9c5Rcg&return=http%3A%2F%2Fwww.aliexpress.com%2F")
+    driver.get("https://www.aliexpress.com/")
+    # driver.find_element_by_class_name("sign-btn").click()
+    driver.execute_script("document.getElementsByClassName('sign-btn')[0].click()")
+    driver.get("https://login.aliexpress.com/express/mulSiteLogin.htm?return=https%3A%2F%2Fwww.aliexpress.com%2F")
     driver.switch_to_frame(driver.find_element_by_id("alibaba-login-box"))
     element = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.ID, "fm-login-id"))
@@ -164,9 +169,19 @@ def login(email, passwd):
     element.send_keys(email)
     driver.find_element_by_xpath("//*[@id=\"fm-login-password\"]").send_keys(passwd)
     driver.find_element_by_id("fm-login-submit").click()
-    element = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.ID, "search-key"))
-    )
+    try:
+        element = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "search-key"))
+        )
+    except TimeoutException:
+        print("Automatic log failed")
+        if args.manual_login:
+            element = WebDriverWait(driver, 60).until(
+                EC.presence_of_element_located((By.ID, "search-key"))
+            )
+        else:
+            raise
+    print("Login success!")
 
 
 def get_orders():
@@ -237,6 +252,7 @@ def parse_days_left(days_left):
     except:
         return days_left
 
+
 if __name__ == "__main__":
     configure_logging(modules=['xaled_scrapers', 'xaled_utils'])
     additional_arguments = list()
@@ -244,46 +260,51 @@ if __name__ == "__main__":
     additional_arguments.append(get_additional_argument('-p', '--password', required=True))
     additional_arguments.append(get_additional_argument('--db-path', default=DEFAULT_ORDERS_DB_PATH))
     additional_arguments.append(get_additional_argument('-P', '--protection', action='store_true'))
+    additional_arguments.append(get_additional_argument('-m', '--manual-login', action='store_true'))
     additional_arguments.append(
         get_additional_argument('--protection-message', default=DEFAULT_PROTECTION_EXTENSION_MSG))
     args = parse_args(additional_argument=additional_arguments)
 
     data = JsonMinConnexion(args.db_path, template={'order_ids': [], 'orders': {}})
-    if args.headless:
-        display = get_display(size=(1500, 800))
-    driver = init_driver_()
-    # driver = init_driver(drivertype=args.driver_type, driver_path=args.driver_path)
-    login(args.user, args.password)
+    try:
+        if args.headless:
+            display = get_display(size=(1500, 800))
+        driver = init_driver_()
+        # driver = init_driver(drivertype=args.driver_type, driver_path=args.driver_path)
+        login(args.user, args.password)
 
-    orders = get_orders()
-    for o in orders:
-        if o['status'].strip() in ['Awaiting Shipment', 'Finished', 'Fund Processing']: 
-            continue  # ignore non shipped and finished orders
-        tt = parse_days_lefts(o["status_days_left"])
-        if 86400 < tt < 14 * 86400:  # 2 weeks
-            if args.protection:
-                print("- SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: #%s %s (%s)"%
-                      (o['order_id'], o['product_list'][0]['title'][:50], o['status_days_left']))
-            else:
-                print("- NOT SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: #%s %s (%s)"%
-                      (o['order_id'], o['product_list'][0]['title'][:50], o['status_days_left']))
-        elif 0 < tt <= 86400:
-            print("- ORDER ABOUT TO EXPIRE; %s (%s)" % (o['product_list'][0]['title'][:50], o['status_days_left']))
-        if o['tracking_status'] == 'Delivered' and o['status'] != 'Finished':
-            print("- ORDER DELIVERED: #%s %s (%s)" %
-                  (o['order_id'], o['product_list'][0]['title'][:50], o['status_days_left']))
-
-    if args.verbose:
-        print("\nlist of retrieved orders:")
-        print("%s | %s | %s | %s | %s | %s" %
-              (resize_string('order_id', 15), resize_string('product title', 40),
-               resize_string('status', 20), resize_string('days left', 10),
-               resize_string('tracking_status', 25), resize_string('tracking_desc', 25)))
+        orders = get_orders()
         for o in orders:
+            if o['status'].strip() in ['Awaiting Shipment', 'Finished', 'Fund Processing']:
+                continue  # ignore non shipped and finished orders
+            tt = parse_days_lefts(o["status_days_left"])
+            if 86400 < tt < 14 * 86400:  # 2 weeks
+                if args.protection:
+                    print("- SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: #%s %s (%s)"%
+                          (o['order_id'], o['product_list'][0]['title'][:50], o['status_days_left']))
+                else:
+                    print("- NOT SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: #%s %s (%s)"%
+                          (o['order_id'], o['product_list'][0]['title'][:50], o['status_days_left']))
+            elif 0 < tt <= 86400:
+                print("- ORDER ABOUT TO EXPIRE; %s (%s)" % (o['product_list'][0]['title'][:50], o['status_days_left']))
+            if o['tracking_status'] == 'Delivered' and o['status'] != 'Finished':
+                print("- ORDER DELIVERED: #%s %s (%s)" %
+                      (o['order_id'], o['product_list'][0]['title'][:50], o['status_days_left']))
+
+        if args.verbose:
+            print("\nlist of retrieved orders:")
             print("%s | %s | %s | %s | %s | %s" %
-                  (resize_string(o['order_id'], 15), resize_string(o['product_list'][0]['title'], 40),
-                   resize_string(o['status'],20), resize_string(parse_days_left(o['status_days_left']), 10),
-                   resize_string(o['tracking_status'],25), resize_string(o['tracking_desc'],25)))
-    driver.quit()
-    if args.headless:
-        display.stop()
+                  (resize_string('order_id', 15), resize_string('product title', 40),
+                   resize_string('status', 20), resize_string('days left', 10),
+                   resize_string('tracking_status', 25), resize_string('tracking_desc', 25)))
+            for o in orders:
+                print("%s | %s | %s | %s | %s | %s" %
+                      (resize_string(o['order_id'], 15), resize_string(o['product_list'][0]['title'], 40),
+                       resize_string(o['status'],20), resize_string(parse_days_left(o['status_days_left']), 10),
+                       resize_string(o['tracking_status'],25), resize_string(o['tracking_desc'],25)))
+    finally:
+        try: driver.quit()
+        except: pass
+        if args.headless:
+            try: display.stop()
+            except: pass
